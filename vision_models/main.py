@@ -83,6 +83,7 @@ parser.add_argument('--load_iter', type = int, default=0, help='load ')
 parser.add_argument('--gradient_accumulation_steps', type = int, default = 0 )
 parser.add_argument('--shuffle',action='store_true', help = 'whether use shuffle in training data.')
 parser.add_argument('--plot_hessian',action='store_true', help = 'whether plot hessian or not')
+parser.add_argument('--rho',type=float, help='rho value for SAM optimizer')
 # best_prec1 = 0.0
 
 def main():
@@ -186,7 +187,7 @@ def main():
         base_opt = optim.SGD(model.parameters(), lr=args.lr,
                           momentum=args.momentum,
                           weight_decay=args.wd)
-        optimizer = SAM(model.parameters(), base_opt, lr=args.lr, weight_decay=args.wd)                              
+        optimizer = SAM(model.parameters(), base_opt, lr=args.lr, weight_decay=args.wd, rho=args.rho)                              
     # optionlly resume from a checkpoint
 
 
@@ -371,13 +372,20 @@ def train(train_loader, model, criterion, optimizer, epoch, print_freq):
         inputs = inputs.cuda()
         'regular update'
         outputs = model(inputs)
+        if isinstance(optimizer, SAM):
+            targets_sam, outputs_sam = copy.deepcopy(targets), copy.deepcopy(outputs)
         loss = criterion(outputs, targets)
 
-        # TODO: modify this to account for SAM
         optimizer.zero_grad()
         loss.backward()        
-        optimizer.step()
-        optimizer.zero_grad()
+        # TODO: modify this to account for SAM
+        if isinstance(optimizer, SAM):
+            optimizer.first_step(zero_grad=True)
+            criterion(outputs_sam, targets_sam).backward()
+            optimizer.second_step(zero_grad=True)
+        else:
+            optimizer.step()
+            optimizer.zero_grad()
 
 
         train_loss += loss.item()
