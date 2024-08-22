@@ -4,6 +4,7 @@ import time
 import shutil
 import copy
 import torch
+from optimizers.sam import SAM
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
@@ -180,7 +181,12 @@ def main():
     elif args.opt == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), eps=args.epsilon,
                                 weight_decay=args.wd, amsgrad=False)
-                                     
+
+    elif args.opt == 'sam':
+        base_opt = optim.SGD(model.parameters(), lr=args.lr,
+                          momentum=args.momentum,
+                          weight_decay=args.wd)
+        optimizer = SAM(model.parameters(), base_opt, lr=args.lr, weight_decay=args.wd)                              
     # optionlly resume from a checkpoint
 
 
@@ -367,6 +373,7 @@ def train(train_loader, model, criterion, optimizer, epoch, print_freq):
         outputs = model(inputs)
         loss = criterion(outputs, targets)
 
+        # TODO: modify this to account for SAM
         optimizer.zero_grad()
         loss.backward()        
         optimizer.step()
