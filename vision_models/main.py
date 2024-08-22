@@ -285,7 +285,7 @@ def plot_hessian(args, model, train_loader ):
     ]
 
 
-    hessian = hessian_spectrum.Hessian(model = model, ckpt_iteration = load_iter, use_minibatch= args.use_minibatch, gradient_accumulation_steps = gradient_accumulation_steps, train_data = train_loader, batch_size= batch_size,sample_layer = sample_layer, comment = comment)
+    hessian = hessian_spectrum.Hessian(model = model, ckpt_iteration = load_iter, use_minibatch= args.use_minibatch, gradient_accumulation_steps = gradient_accumulation_steps, train_data = train_loader, batch_size= batch_size,sample_layer = sample_layer, comment = comment, pred_hessian=True)
 
 
     hessian.get_spectrum(layer_by_layer = True)

@@ -14,7 +14,7 @@ import json
 
 
 class Hessian(object):
-    def __init__(self, model = None,  m = 100, sigma = 1e-5**0.5, ckpt_iteration= 0, train_data = [], block_size = None, batch_size = None, num_v = 10, ctx =nullcontext(), use_minibatch = True, gradient_accumulation_steps = 1, device = 'cuda',sample_layer = None,  ddp = False, comment = None):
+    def __init__(self, model = None,  m = 100, sigma = 1e-5**0.5, ckpt_iteration= 0, train_data = [], block_size = None, batch_size = None, num_v = 10, ctx =nullcontext(), use_minibatch = True, gradient_accumulation_steps = 1, device = 'cuda',sample_layer = None,  ddp = False, comment = None, pred_hessian=False,with_ell_prime=True):
         self.model = model
         self.m = m # number of lanzcos basis
         self.sigma = sigma # the standard deviation of gaussian r.v.
@@ -30,6 +30,8 @@ class Hessian(object):
         self.ddp = ddp
         self.num_v = num_v
         self.num_bins = 1000
+        self.pred_hessian = pred_hessian
+        self.with_ell_prime = with_ell_prime
 
 
         self.num_batches = len(self.train_data)
@@ -283,8 +285,10 @@ class Hessian(object):
                 T_dic[name] = np.zeros((self.m, self.m), dtype= np.float64)
 
 
-     
-        w_prime_dic = self.hessian_vector_product_with_dic_input_image(v_dic, k,0)  
+        if self.pred_hessian:
+            w_prime_dic = self.predictor_hessian_vector_product_with_dic_input_image(v_dic, k,0)
+        else:
+            w_prime_dic = self.hessian_vector_product_with_dic_input_image(v_dic, k,0)  
        
         'orthogonalize wprime'
         for name in T_dic.keys():
@@ -335,8 +339,10 @@ class Hessian(object):
         v /= torch.norm(v)
         v_list.append(v.cpu())
 
-
-        w_prime = self.hessian_vector_product_with_tensor_input_image(v_list[-1], k,0)
+        if self.pred_hessian:
+            w_prime = self.predictor_hessian_vector_product_with_tensor_input_image(v_list[-1], k,0)
+        else:
+            w_prime = self.hessian_vector_product_with_tensor_input_image(v_list[-1], k,0)
         
         'orthogonalize wprime'
         alpha = torch.sum(w_prime * v_list[-1])
@@ -454,6 +460,71 @@ class Hessian(object):
                 break
         return hd_dic
 
+    def predictor_hessian_vector_product_with_dic_input_image(self, d_dic, v_step, l_step):
+
+        'comput hessian_vector product, takes a dictionary as input, the values of dic is a list of historical lanscoz directions: d_dic = {name, [history v..]}'
+        self.model.eval()
+        self.model.zero_grad(set_to_none = True)
+
+
+        time_initialize = time.time()
+        'initialize'
+        hd_dic = {}
+        for name, param in self.model.named_parameters():
+            if name not in self.sample_layer:
+                continue
+            if param.requires_grad:
+                hd_dic[name]  = torch.zeros_like(param.data).cpu()
+
+        #print('initial ', time.time()  - time_initialize)
+        time_getdata =time.time()
+        t_hd = time.time()
+        for batch_idx, (inputs, targets) in enumerate(self.train_data):
+            #print('b indx', batch_idx, 'get data', time.time() - time_getdata)
+
+            X = inputs.cuda()
+            Y = targets.cuda()
+
+            #print('X norm', torch.norm(X))
+
+            
+            outputs = self.model(X)
+            loss = self.criterion(outputs, Y)
+
+            # ell_prime = dl/dy_i : (batch, num_classes)
+            ell_prime = torch.autograd.grad(loss,outputs)[0]
+            if self.with_ell_prime:
+                outputs.backward(gradient=ell_prime,create_graph=True)
+            else:
+                outputs.backward(gradient=torch.ones_like(ell_prime),create_graph=True)
+
+            g_dic = {}
+
+            for name, param in self.model.named_parameters():
+                if name not in self.sample_layer:
+                    continue
+                if param.requires_grad:
+                    g_dic[name] = param.grad.double()
+  
+        
+            self.model.zero_grad(set_to_none = True)
+            for name, param in self.model.named_parameters():
+                if name not in self.sample_layer:
+                    continue
+                if param.requires_grad:
+                    l = torch.sum(g_dic[name].cuda() * d_dic[name][-1].cuda())
+                    l.backward(retain_graph = True)
+                    hd = param.grad.double().data.clone()
+
+                    hd_dic[name]  += hd.cpu()
+                    self.model.zero_grad(set_to_none = True)
+
+            if batch_idx % 10 == 1 or batch_idx == self.gradient_accumulation_steps-1:
+                print(f'layer pred_hessian: load_iter ={self.ckpt_iteration}, current random direction = {v_step} / {self.num_v}, lanczos step = {l_step} / {self.m}, Hd current batch = {batch_idx} / {self.num_batches}, time = {time.time() -t_hd}')
+                t_hd = time.time()
+            if self.use_minibatch == True and batch_idx == self.gradient_accumulation_steps-1:
+                break
+        return hd_dic
 
 
     def hessian_vector_product_with_tensor_input_image(self, d_tensor, v_step, l_step):
@@ -474,6 +545,60 @@ class Hessian(object):
             loss = self.criterion(outputs, Y)
 
             loss.backward(create_graph= True)
+            g_list = []
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    g_list.append(torch.flatten(param.grad.double()))
+
+            g_tensor = torch.cat(g_list, dim = 0)
+            
+            self.model.zero_grad(set_to_none = True)
+            g_tensor = g_tensor.cuda()
+            l = torch.sum(g_tensor*d_tensor)
+            l.backward(retain_graph = True)
+
+            hd_list = []
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    hd_list.append(torch.flatten(param.grad.double().data.clone()))
+
+            hd_tensor = torch.cat(hd_list, dim = 0)
+            self.model.zero_grad(set_to_none = True)
+            hd_tensor = hd_tensor.cpu()
+            total_hd_tensor += hd_tensor
+
+            if batch_idx % 10 == 1 or batch_idx == self.gradient_accumulation_steps-1:
+                print(f'full hessian: load_iter ={self.ckpt_iteration} current random direction = {v_step} / {self.num_v}, lanczos step = {l_step} / {self.m}, Hd current batch = {batch_idx} / {self.num_batches}, time = {time.time() -t_hd}')
+                t_hd = time.time()
+
+            if self.use_minibatch == True and batch_idx == self.gradient_accumulation_steps-1:
+                break
+        return total_hd_tensor
+
+    def predictor_hessian_vector_product_with_tensor_input_image(self, d_tensor, v_step, l_step):
+        'comput hessian_vector product, takes a flattened tensors as input (with shape (total parameters, ) )'
+
+        d_tensor = d_tensor.cuda()
+        self.model.eval()
+        self.model.zero_grad(set_to_none = True)
+        total_hd_tensor = 0
+
+        t_hd = time.time()
+        for batch_idx, (inputs, targets) in enumerate(self.train_data):
+            #print('b indx', batch_idx, 'get data', time.time() - time_getdata)
+
+            X = inputs.cuda()
+            Y = targets.cuda()
+            outputs = self.model(X)
+            loss = self.criterion(outputs, Y)
+
+            # ell_prime = dl/dy_i : (batch, num_classes)
+            ell_prime = torch.autograd.grad(loss,outputs)[0]
+            if self.with_ell_prime:
+                outputs.backward(gradient=ell_prime,create_graph=True)
+            else:
+                outputs.backward(gradient=torch.ones_like(ell_prime),create_graph=True)
+
             g_list = []
             for name, param in self.model.named_parameters():
                 if param.requires_grad:
