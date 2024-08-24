@@ -178,16 +178,14 @@ def main():
     elif args.opt == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), eps=args.epsilon,
                                weight_decay=args.wd, amsgrad=False)
-
     elif args.opt == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), eps=args.epsilon,
                                 weight_decay=args.wd, amsgrad=False)
-
     elif args.opt == 'sam':
         base_opt = optim.SGD(model.parameters(), lr=args.lr,
                           momentum=args.momentum,
                           weight_decay=args.wd)
-        optimizer = SAM(model.parameters(), base_opt, lr=args.lr, weight_decay=args.wd, rho=args.rho)                              
+        optimizer = SAM(model.parameters(), base_opt, weight_decay=args.wd, rho=args.rho)                              
     # optionlly resume from a checkpoint
 
 

@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import time
+from optimizers.sam import SAM
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -298,7 +299,7 @@ class GPT(nn.Module):
 
         return model
 
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type, use_sgd = False):
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type, use_sgd = False, use_sam = False, sam_rho=0.05):
         # start with all of the candidate parameters
         param_dict = {pn: p for pn, p in self.named_parameters()}
         # filter out those that do not require grad
@@ -320,10 +321,13 @@ class GPT(nn.Module):
         use_fused = fused_available and device_type == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
         
-        
+
         if use_sgd: 
             optimizer = torch.optim.SGD(optim_groups, lr = learning_rate, momentum = 0.9)
-        
+        elif use_sam:
+        # TODO: Add SAM
+            base_optimizer = torch.optim.SGD(optim_groups, lr = learning_rate, momentum = 0.9)
+            optimizer = SAM(optim_groups, base_optimizer, sam_rho)
         else: 
             optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
     
