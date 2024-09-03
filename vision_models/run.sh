@@ -9,7 +9,7 @@ python -um main \
   --workers 48\
   --epochs 90\
   --arch 'vit'\
-  --opt 'adamw'\
+  --opt 'sam'\
   --seed 32 \
   --batchsize 256\
   --epsilon 1e-8\

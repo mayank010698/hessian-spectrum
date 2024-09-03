@@ -56,3 +56,9 @@ If you find this code helpful, please cite our paper in the following format.
   year      = {2024},
 }
 ```
+
+
+Code to run: 
+```
+python vision_models/main.py --data 'imagenet' --lr 0.1 wd 1e-4 --workers 48 --epochs 1 --arch 'vit' --opt 'sam' --seed 32 --batchsize 256 --epsilon 1e-8 --resume '' --load_iter 0 --comment ''
+```
