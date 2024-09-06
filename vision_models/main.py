@@ -43,7 +43,7 @@ print("init amp")
 scaler = torch.cuda.amp.GradScaler()
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--data', default='/home/yszhang/datasets/imagenet/', help='path to dataset')
+parser.add_argument('--data', default='/home/samuel_schapiro/hessian-spectrum/imagenet/', help='path to dataset')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18', choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: alexnet)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
@@ -367,7 +367,7 @@ def train(train_loader, model, criterion, optimizer, epoch, print_freq):
         targets = targets.cuda()
         inputs = inputs.cuda()
         'regular update'
-        outputs = model(inputs)
+        outputs = model(inputs) 
         if isinstance(optimizer, SAM):
             targets_sam, outputs_sam = copy.deepcopy(targets), copy.deepcopy(outputs)
         loss = criterion(outputs, targets)

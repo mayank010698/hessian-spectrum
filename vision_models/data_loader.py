@@ -6,7 +6,7 @@ import torchvision.datasets as datasets
 
 
 def data_loader(root, batch_size=256, workers=1, pin_memory=True, shuffle = True):
-    #root= '/data/yuncheng/ImageNet2012/'
+    root= 'tiny-imagenet-200/'
     traindir = os.path.join(root, 'train')
     valdir = os.path.join(root, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],

@@ -62,3 +62,5 @@ Code to run:
 ```
 python vision_models/main.py --data 'imagenet' --lr 0.1 --wd 1e-4 --workers 48 --epochs 1 --arch 'resnet18' --opt 'sam' --seed 32 --batchsize 256 --epsilon 1e-8 --resume '' --load_iter 0 --comment ''
 ```
+
+To download the dataset, run `wget https://image-net.org/data/tiny-imagenet-200.zip`, add `tiny-imagenet-200/` to your git ignore file, and then run `unzip tiny-imagenet-200.zip`.

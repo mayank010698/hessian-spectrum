@@ -5,6 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
+tiny-imagenet-200/
 
 # Result
 result/
