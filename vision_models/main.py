@@ -366,10 +366,7 @@ def train(train_loader, model, criterion, optimizer, epoch, print_freq):
 
         targets = targets.cuda()
         inputs = inputs.cuda()
-        'regular update'
         outputs = model(inputs) 
-        if isinstance(optimizer, SAM):
-            targets_sam, outputs_sam = copy.deepcopy(targets), copy.deepcopy(outputs)
         loss = criterion(outputs, targets)
 
         optimizer.zero_grad()
@@ -377,7 +374,7 @@ def train(train_loader, model, criterion, optimizer, epoch, print_freq):
         # TODO: modify this to account for SAM
         if isinstance(optimizer, SAM):
             optimizer.first_step(zero_grad=True)
-            criterion(outputs_sam, targets_sam).backward()
+            criterion(model(inputs), targets).backward()
             optimizer.second_step(zero_grad=True)
         else:
             optimizer.step()
