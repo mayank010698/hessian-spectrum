@@ -83,7 +83,7 @@ parser.add_argument('--load_iter', type = int, default=0, help='load ')
 parser.add_argument('--gradient_accumulation_steps', type = int, default = 0 )
 parser.add_argument('--shuffle',action='store_true', help = 'whether use shuffle in training data.')
 parser.add_argument('--plot_hessian',action='store_true', help = 'whether plot hessian or not')
-parser.add_argument('--rho',type=float, help='rho value for SAM optimizer')
+parser.add_argument('--rho',type=float, default=0.05, help='rho value for SAM optimizer')
 # best_prec1 = 0.0
 
 def main():
@@ -182,9 +182,7 @@ def main():
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), eps=args.epsilon,
                                 weight_decay=args.wd, amsgrad=False)
     elif args.opt == 'sam':
-        base_opt = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=args.momentum,
-                          weight_decay=args.wd)
+        base_opt = optim.SGD
         optimizer = SAM(model.parameters(), base_opt, weight_decay=args.wd, rho=args.rho)                              
     # optionlly resume from a checkpoint
 
